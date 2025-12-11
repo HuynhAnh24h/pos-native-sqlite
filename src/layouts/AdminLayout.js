@@ -1,37 +1,44 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   View, 
   Text, 
   StyleSheet, 
   TouchableOpacity, 
   ScrollView,
-  SafeAreaView,
   StatusBar,
   Alert,
   Dimensions
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SessionStore } from '../state/SessionStore';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { width } = Dimensions.get('window');
 const isTablet = width >= 768;
 
-export default function AdminLayout({ children, navigation, activeRoute = 'Dashboard' }) {
+export default function AdminLayout({ children, navigation, activeRoute: initialRoute = 'Dashboard' }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [activeRoute, setActiveRoute] = useState(initialRoute);
+  const [isTablet, setIsTablet] = useState(Dimensions.get('window').width >= 768)
+  useEffect(() => {
+  const subscription = Dimensions.addEventListener('change', ({ window }) => {
+    setIsTablet(window.width >= 768);
+  });
+
+  return () => subscription?.remove();
+}, []);
 
   const menuItems = [
-    { id: 'Dashboard', icon: 'grid-outline', label: 'Dashboard', route: 'Dashboard' },
+    { id: 'Dashboard', icon: 'grid-outline', label: 'Thống kê', route: 'Dashboard' },
     { id: 'Menu', icon: 'restaurant-outline', label: 'Quản lý Menu', route: 'Menu' },
     { id: 'Rooms', icon: 'musical-notes-outline', label: 'Phòng hát', route: 'Rooms' },
-    { id: 'Orders', icon: 'cart-outline', label: 'Đơn hàng', route: 'Orders' },
-    { id: 'Users', icon: 'people-outline', label: 'Khách hàng', route: 'Users' },
-    { id: 'Analytics', icon: 'analytics-outline', label: 'Thống kê', route: 'Analytics' },
-    { id: 'Settings', icon: 'settings-outline', label: 'Cài đặt', route: 'Settings' },
+    { id: 'History', icon: 'cart-outline', label: 'Lịch sử giao dịch', route: 'History' },
   ];
 
-  const handleNavigation = (route) => {
+  const handleNavigation = (route, id) => {
     if (navigation && navigation.navigate) {
       navigation.navigate(route);
+      setActiveRoute(id); // cập nhật tab đang active
     }
   };
 
@@ -40,18 +47,14 @@ export default function AdminLayout({ children, navigation, activeRoute = 'Dashb
       'Đăng xuất',
       'Bạn có chắc muốn đăng xuất?',
       [
-        { 
-          text: 'Hủy', 
-          style: 'cancel' 
-        },
+        { text: 'Hủy', style: 'cancel' },
         {
           text: 'Đăng xuất',
           style: 'destructive',
           onPress: () => {
             try {
-              // Clear session - AppNavigator sẽ tự động chuyển về Login
               SessionStore.clear();
-              console.log('✅ Logged out successfully');
+              console.log('Logged out successfully');
             } catch (error) {
               console.error('Logout error:', error);
               Alert.alert('Lỗi', 'Không thể đăng xuất');
@@ -68,7 +71,7 @@ export default function AdminLayout({ children, navigation, activeRoute = 'Dashb
   const userRole = session?.user?.role === 'admin' ? 'Quản trị viên' : 'Nhân viên';
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
       
       <View style={styles.layout}>
@@ -105,7 +108,7 @@ export default function AdminLayout({ children, navigation, activeRoute = 'Dashb
                   activeRoute === item.id && styles.menuItemActive,
                   sidebarCollapsed && styles.menuItemCollapsed
                 ]}
-                onPress={() => handleNavigation(item.route)}
+                onPress={() => handleNavigation(item.route, item.id)}
                 activeOpacity={0.7}
               >
                 <View style={[
@@ -179,20 +182,6 @@ export default function AdminLayout({ children, navigation, activeRoute = 'Dashb
             </View>
 
             <View style={styles.topBarRight}>
-              {/* Search */}
-              <TouchableOpacity style={styles.searchContainer}>
-                <Ionicons name="search-outline" size={20} color="#64748B" />
-                <Text style={styles.searchPlaceholder}>Tìm kiếm...</Text>
-              </TouchableOpacity>
-
-              {/* Notifications */}
-              <TouchableOpacity style={styles.iconButton}>
-                <Ionicons name="notifications-outline" size={22} color="#0A1E42" />
-                <View style={styles.badge}>
-                  <Text style={styles.badgeText}>3</Text>
-                </View>
-              </TouchableOpacity>
-
               {/* User Profile */}
               <TouchableOpacity style={styles.userProfile}>
                 <View style={styles.avatar}>
@@ -222,6 +211,7 @@ export default function AdminLayout({ children, navigation, activeRoute = 'Dashb
     </SafeAreaView>
   );
 }
+
 
 const styles = StyleSheet.create({
   container: {
