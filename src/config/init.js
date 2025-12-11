@@ -1,8 +1,8 @@
-// src/config/init.js
-import { runMigrations, getDB } from './database';  // ✅ Cùng thư mục config
-import { seedAdmin } from './seed';                 // ✅ Cùng thư mục config
-import { seedMenuData } from './seedMenu';          // ✅ Cùng thư mục config
-import { MenuModel } from '../models/MenuModel';    // ✅ Lên 1 cấp, vào models
+import { runMigrations } from './database';
+import { seedAdmin } from './seed';
+import { MenuModel } from '../models/MenuModel';
+import { seedMenuData } from './seedMenu';
+import { RoomModel } from '../models/RoomModel';  // ← Thêm import
 
 export async function initDatabase() {
   try {
@@ -14,6 +14,11 @@ export async function initDatabase() {
     // Tạo bảng menu
     MenuModel.createTable();
     MenuModel.createCategoriesTable();
+    
+    // Tạo bảng rooms  ← THÊM ĐOẠN NÀY
+    RoomModel.createTable();
+    RoomModel.createOrdersTable();
+    RoomModel.createInvoicesTable();
     
     console.log('🌱 Running seeds...');
     

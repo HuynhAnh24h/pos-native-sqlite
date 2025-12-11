@@ -12,8 +12,8 @@ import LoginScreen from '../screens/auth/LoginScreen';
 import DashboardScreen from '../screens/admin/DashboardScreen';
 import MenuScreen from '../screens/admin/MenuScreen';
 import RoomsScreen from '../screens/admin/RoomsScreen';
-import OrdersScreen from '../screens/admin/OrdersScreen';
-
+import RoomCheckInScreen from '../screens/admin/RoomCheckinScreen';
+import RoomDetailScreen from '../screens/admin/RoomDetailScreen';
 const Stack = createNativeStackNavigator();
 
 export default function AppNavigator() {
@@ -23,47 +23,33 @@ export default function AppNavigator() {
   useEffect(() => {
     async function initializeApp() {
       try {
-        console.log('🔄 Initializing app...');
-        
-        // Initialize session
         await SessionStore.init();
-        
-        // Check if user is logged in
         const session = SessionStore.get();
-        const hasValidToken = !!(session && (session.token || session.userId));
-        
-        console.log('Session status:', hasValidToken ? 'Logged in' : 'Not logged in');
-        setIsLoggedIn(hasValidToken);
-        
+        setIsLoggedIn(!!(session && (session.token || session.userId)));
       } catch (error) {
         console.error('❌ App initialization failed:', error);
         setIsLoggedIn(false);
       } finally {
         setIsReady(true);
-        console.log('✅ App ready');
       }
     }
 
     initializeApp();
   }, []);
 
-  // Listener for session changes
   useEffect(() => {
     const checkAuthInterval = setInterval(() => {
       const session = SessionStore.get();
       const hasValidToken = !!(session && (session.token || session.userId));
       
-      // Chỉ update state khi thay đổi
       if (hasValidToken !== isLoggedIn) {
-        console.log('Auth state changed:', hasValidToken ? 'Logged in' : 'Logged out');
         setIsLoggedIn(hasValidToken);
       }
-    }, 500); // Check mỗi 0.5s
+    }, 500);
     
     return () => clearInterval(checkAuthInterval);
   }, [isLoggedIn]);
 
-  // Show loading screen while initializing
   if (!isReady) {
     return (
       <View style={styles.loadingContainer}>
@@ -81,23 +67,17 @@ export default function AppNavigator() {
         }}
       >
         {!isLoggedIn ? (
-          // Authentication Stack
           <Stack.Screen 
             name="Login" 
             component={LoginScreen}
-            options={{ 
-              gestureEnabled: false
-            }}
+            options={{ gestureEnabled: false }}
           />
         ) : (
-          // Authenticated Stack
           <>
             <Stack.Screen 
               name="Dashboard" 
               component={DashboardScreen}
-              options={{ 
-                gestureEnabled: false
-              }}
+              options={{ gestureEnabled: false }}
             />
             <Stack.Screen 
               name="Menu" 
@@ -108,8 +88,12 @@ export default function AppNavigator() {
               component={RoomsScreen}
             />
             <Stack.Screen 
-              name="Orders" 
-              component={OrdersScreen}
+              name="RoomCheckIn" 
+              component={RoomCheckInScreen}
+            />
+            <Stack.Screen 
+              name="RoomDetail" 
+              component={RoomDetailScreen}
             />
           </>
         )}
