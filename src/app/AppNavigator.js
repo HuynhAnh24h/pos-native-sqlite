@@ -16,6 +16,7 @@ import RoomCheckInScreen from "../screens/admin/RoomCheckinScreen";
 import RoomDetailScreen from "../screens/admin/RoomDetailScreen";
 import InvoiceScreen from "../screens/admin/InvoiceScreen";
 import HistoryScreen from "../screens/admin/HistoryScreen";
+import SettingsScreen from "../screens/admin/SettingScreen";
 const Stack = createNativeStackNavigator();
 
 export default function AppNavigator() {
@@ -87,6 +88,7 @@ export default function AppNavigator() {
             <Stack.Screen name="RoomDetail" component={RoomDetailScreen} />
             <Stack.Screen name="Invoice" component={InvoiceScreen} />
             <Stack.Screen name="History" component={HistoryScreen} />
+            <Stack.Screen name="Setting" component={SettingsScreen} />
           </>
         )}
       </Stack.Navigator>

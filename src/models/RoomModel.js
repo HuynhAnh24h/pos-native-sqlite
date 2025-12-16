@@ -14,6 +14,7 @@ export const RoomModel = {
         customer_name TEXT,
         customer_phone TEXT,
         start_time TEXT,
+        session_id TEXT,
         created_at TEXT NOT NULL
       );
     `);
@@ -143,7 +144,13 @@ export const RoomModel = {
     }
   },
 
-  // Check-in phòng (bắt đầu sử dụng)
+  // ============================================
+  // SESSION MANAGEMENT - QUAN TRỌNG
+  // ============================================
+
+  /**
+   * Check-in phòng (bắt đầu session mới)
+   */
   checkIn: (id, { customerName, customerPhone }) => {
     const db = getDB();
     const now = new Date().toISOString();
@@ -155,9 +162,10 @@ export const RoomModel = {
          SET status = 'occupied', 
              customer_name = ?, 
              customer_phone = ?, 
-             start_time = ?
+             start_time = ?,
+             session_id = ?
          WHERE id = ?`,
-        [customerName, customerPhone, now, id]
+        [customerName, customerPhone, now, sessionId, id]
       );
       
       return { sessionId, startTime: now };
@@ -167,7 +175,36 @@ export const RoomModel = {
     }
   },
 
-  // Check-out phòng (kết thúc, trả về trạng thái rỗng)
+  /**
+   * Lấy session hiện tại của phòng
+   */
+  getCurrentSession: (roomId) => {
+    const db = getDB();
+    try {
+      const result = db.getAllSync(
+        'SELECT session_id, start_time, customer_name, customer_phone FROM rooms WHERE id = ? LIMIT 1',
+        [roomId]
+      );
+      
+      if (result.length > 0 && result[0].session_id) {
+        return {
+          sessionId: result[0].session_id,
+          startTime: result[0].start_time,
+          customerName: result[0].customer_name,
+          customerPhone: result[0].customer_phone
+        };
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Error getting current session:', error);
+      return null;
+    }
+  },
+
+  /**
+   * Check-out phòng (kết thúc session)
+   */
   checkOut: (id) => {
     const db = getDB();
     
@@ -177,7 +214,8 @@ export const RoomModel = {
          SET status = 'available',
              customer_name = NULL,
              customer_phone = NULL,
-             start_time = NULL
+             start_time = NULL,
+             session_id = NULL
          WHERE id = ?`,
         [id]
       );
@@ -188,7 +226,13 @@ export const RoomModel = {
     }
   },
 
-  // Thêm order cho phòng
+  // ============================================
+  // ORDERS MANAGEMENT
+  // ============================================
+
+  /**
+   * Thêm order mới
+   */
   addOrder: ({ roomId, sessionId, menuItemId, menuItemName, quantity, price }) => {
     const db = getDB();
     const now = new Date().toISOString();
@@ -219,7 +263,9 @@ export const RoomModel = {
     }
   },
 
-  // Lấy tất cả orders của phòng theo session
+  /**
+   * Lấy tất cả orders của một session
+   */
   getOrdersBySession: (sessionId) => {
     const db = getDB();
     try {
@@ -233,7 +279,9 @@ export const RoomModel = {
     }
   },
 
-  // Xóa order
+  /**
+   * Xóa order
+   */
   deleteOrder: (orderId) => {
     const db = getDB();
     try {
@@ -245,7 +293,13 @@ export const RoomModel = {
     }
   },
 
-  // Tạo hóa đơn
+  // ============================================
+  // INVOICE MANAGEMENT
+  // ============================================
+
+  /**
+   * Tạo hóa đơn và xóa orders của session
+   */
   createInvoice: (invoiceData) => {
     const db = getDB();
     const now = new Date().toISOString();
@@ -275,7 +329,7 @@ export const RoomModel = {
         ]
       );
       
-      // Xóa orders của session này
+      // Xóa orders của session này sau khi tạo invoice
       db.runSync('DELETE FROM room_orders WHERE session_id = ?', [invoiceData.sessionId]);
       
       return {
@@ -289,7 +343,9 @@ export const RoomModel = {
     }
   },
 
-  // Lấy tất cả hóa đơn
+  /**
+   * Lấy tất cả hóa đơn
+   */
   getAllInvoices: () => {
     const db = getDB();
     try {
@@ -300,7 +356,9 @@ export const RoomModel = {
     }
   },
 
-  // Lấy hóa đơn theo ID
+  /**
+   * Lấy hóa đơn theo ID
+   */
   getInvoiceById: (id) => {
     const db = getDB();
     try {

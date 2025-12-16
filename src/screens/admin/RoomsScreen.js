@@ -256,6 +256,7 @@ export default function RoomsScreen({ navigation }) {
           numColumns={3}
           columnWrapperStyle={styles.row}
           showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 20 }}
           ListEmptyComponent={
             <View style={styles.emptyState}>
               <Ionicons name="musical-notes-outline" size={64} color="#CBD5E1" />

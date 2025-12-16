@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   Alert,
   ScrollView,
-  Image,
   Modal,
   TextInput
 } from 'react-native';
@@ -24,7 +23,9 @@ export default function InvoiceScreen({ route, navigation }) {
     orders,
     roomCharge,
     foodCharge,
-    totalAmount
+    totalAmount,
+    customerName,
+    customerPhone
   } = route.params;
 
   const [qrModalVisible, setQrModalVisible] = useState(false);
@@ -66,7 +67,7 @@ export default function InvoiceScreen({ route, navigation }) {
         accountNumber,
         accountName,
         amount: totalAmount,
-        description: `Thanh toan phong ${room.name} - ${room.customer_name}`
+        description: `Thanh toan phong ${room.name} - ${customerName}`
       });
     }
     return `Thanh toan ${formatPrice(totalAmount)} - Phong ${room.name}`;
@@ -97,7 +98,7 @@ export default function InvoiceScreen({ route, navigation }) {
     setQrModalVisible(true);
   };
 
-  const handleConfirmPayment = () => {
+  const handleConfirmPayment = (paymentMethod = 'cash') => {
     Alert.alert(
       'Xác nhận thanh toán',
       `Xác nhận đã nhận ${formatPrice(totalAmount)} từ khách hàng?`,
@@ -106,14 +107,14 @@ export default function InvoiceScreen({ route, navigation }) {
         {
           text: 'Đã nhận',
           onPress: () => {
-            handleCompletePayment();
+            handleCompletePayment(paymentMethod);
           }
         }
       ]
     );
   };
 
-  const handleCompletePayment = () => {
+  const handleCompletePayment = (paymentMethod) => {
     Alert.alert(
       'Hoàn tất',
       'Bạn có muốn lưu hóa đơn và trả phòng?',
@@ -123,23 +124,25 @@ export default function InvoiceScreen({ route, navigation }) {
           text: 'Hoàn tất',
           onPress: async () => {
             try {
-              // Tạo hóa đơn
+              // Tạo hóa đơn với đầy đủ thông tin
               const invoice = RoomModel.createInvoice({
                 sessionId,
                 roomId: room.id,
                 roomName: room.name,
-                customerName: room.customer_name,
-                customerPhone: room.customer_phone,
+                customerName: customerName || room.customer_name || 'Khách',
+                customerPhone: customerPhone || room.customer_phone || '',
                 startTime,
                 endTime,
                 durationHours: duration,
                 roomCharge,
                 foodCharge,
                 totalAmount,
-                paymentMethod: 'transfer'
+                paymentMethod: paymentMethod
               });
 
-              // Check-out phòng
+              console.log('Invoice created:', invoice);
+
+              // Check-out phòng (xóa session_id, reset về available)
               RoomModel.checkOut(room.id);
 
               Alert.alert(
@@ -149,6 +152,7 @@ export default function InvoiceScreen({ route, navigation }) {
                   {
                     text: 'OK',
                     onPress: () => {
+                      // Reset navigation về màn hình Rooms
                       navigation.reset({
                         index: 0,
                         routes: [{ name: 'Rooms' }],
@@ -159,7 +163,7 @@ export default function InvoiceScreen({ route, navigation }) {
               );
             } catch (error) {
               console.error('Payment error:', error);
-              Alert.alert('Lỗi', 'Không thể hoàn tất thanh toán');
+              Alert.alert('Lỗi', 'Không thể hoàn tất thanh toán. Vui lòng thử lại.');
             }
           }
         }
@@ -210,11 +214,11 @@ export default function InvoiceScreen({ route, navigation }) {
             <Text style={styles.sectionLabel}>Thông tin khách hàng</Text>
             <View style={styles.infoRow}>
               <Ionicons name="person" size={18} color="#64748B" />
-              <Text style={styles.infoText}>{room.customer_name}</Text>
+              <Text style={styles.infoText}>{customerName || room.customer_name || 'Khách'}</Text>
             </View>
             <View style={styles.infoRow}>
               <Ionicons name="call" size={18} color="#64748B" />
-              <Text style={styles.infoText}>{room.customer_phone}</Text>
+              <Text style={styles.infoText}>{customerPhone || room.customer_phone || 'N/A'}</Text>
             </View>
             <View style={styles.infoRow}>
               <Ionicons name="musical-notes" size={18} color="#64748B" />
@@ -332,7 +336,7 @@ export default function InvoiceScreen({ route, navigation }) {
 
           <TouchableOpacity
             style={styles.paymentButton}
-            onPress={handleConfirmPayment}
+            onPress={() => handleConfirmPayment('cash')}
           >
             <View style={[styles.paymentIcon, { backgroundColor: '#ECFDF5' }]}>
               <Ionicons name="cash" size={24} color="#10B981" />
@@ -358,7 +362,7 @@ export default function InvoiceScreen({ route, navigation }) {
         
         <TouchableOpacity
           style={styles.confirmButton}
-          onPress={handleConfirmPayment}
+          onPress={() => handleConfirmPayment('cash')}
         >
           <Ionicons name="checkmark-circle" size={20} color="#fff" />
           <Text style={styles.confirmButtonText}>Xác nhận đã thanh toán</Text>
@@ -415,7 +419,7 @@ export default function InvoiceScreen({ route, navigation }) {
               style={styles.qrConfirmButton}
               onPress={() => {
                 setQrModalVisible(false);
-                handleConfirmPayment();
+                handleConfirmPayment('transfer');
               }}
             >
               <Text style={styles.qrConfirmButtonText}>Đã nhận tiền</Text>

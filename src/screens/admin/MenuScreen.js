@@ -166,6 +166,56 @@ export default function MenuScreen({ navigation }) {
     }).format(price);
   };
 
+  const renderMenuItem = ({ item }) => (
+    <View style={styles.menuCard}>
+      {/* Image */}
+      <View style={styles.imageContainer}>
+        {item.image_url ? (
+          <Image source={{ uri: item.image_url }} style={styles.menuImage} />
+        ) : (
+          <View style={styles.placeholderImage}>
+            <Ionicons name="image-outline" size={32} color="#CBD5E1" />
+          </View>
+        )}
+        <View style={styles.statusBadge}>
+          <View style={[
+            styles.statusDot,
+            item.is_available ? styles.statusAvailable : styles.statusUnavailable
+          ]} />
+        </View>
+      </View>
+
+      {/* Info */}
+      <View style={styles.menuInfo}>
+        <Text style={styles.menuName} numberOfLines={2}>
+          {item.name}
+        </Text>
+        {item.description && (
+          <Text style={styles.menuDescription} numberOfLines={2}>
+            {item.description}
+          </Text>
+        )}
+        <Text style={styles.menuPrice}>{formatPrice(item.price)}</Text>
+      </View>
+
+      {/* Actions */}
+      <View style={styles.menuActions}>
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={() => handleEditItem(item)}
+        >
+          <Ionicons name="create-outline" size={18} color="#0A1E42" />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.actionButton, styles.deleteButton]}
+          onPress={() => handleDeleteItem(item)}
+        >
+          <Ionicons name="trash-outline" size={18} color="#EF4444" />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
   return (
     <AdminLayout navigation={navigation} activeRoute="Products">
       <View style={styles.container}>

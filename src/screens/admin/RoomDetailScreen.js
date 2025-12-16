@@ -19,11 +19,15 @@ export default function RoomDetailScreen({ route, navigation }) {
   
   const [orders, setOrders] = useState([]);
   const [menuItems, setMenuItems] = useState([]);
-  const [sessionId, setSessionId] = useState(room.session_id || `SESSION_${Date.now()}_${room.id}`);
-  const [startTime] = useState(room.start_time || new Date().toISOString());
+  const [currentSession, setCurrentSession] = useState(null);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('all');
+  
+  // Quantity selector modal
+  const [quantityModalVisible, setQuantityModalVisible] = useState(false);
+  const [selectedMenuItem, setSelectedMenuItem] = useState(null);
+  const [selectedQuantity, setSelectedQuantity] = useState(1);
 
   const categories = [
     { id: 'all', name: 'Tất cả', icon: 'apps' },
@@ -35,10 +39,9 @@ export default function RoomDetailScreen({ route, navigation }) {
   ];
 
   useEffect(() => {
-    loadOrders();
+    initializeSession();
     loadMenu();
     
-    // Update time every second
     const interval = setInterval(() => {
       setCurrentTime(new Date());
     }, 1000);
@@ -46,7 +49,39 @@ export default function RoomDetailScreen({ route, navigation }) {
     return () => clearInterval(interval);
   }, []);
 
-  const loadOrders = () => {
+  const initializeSession = () => {
+    try {
+      if (room.session_id) {
+        const session = {
+          sessionId: room.session_id,
+          startTime: room.start_time,
+          customerName: room.customer_name,
+          customerPhone: room.customer_phone
+        };
+        setCurrentSession(session);
+        loadOrders(room.session_id);
+        return;
+      }
+
+      const existingSession = RoomModel.getCurrentSession(room.id);
+      
+      if (existingSession) {
+        setCurrentSession(existingSession);
+        loadOrders(existingSession.sessionId);
+      } else {
+        Alert.alert(
+          'Lỗi',
+          'Không tìm thấy phiên làm việc. Vui lòng check-in lại.',
+          [{ text: 'OK', onPress: () => navigation.goBack() }]
+        );
+      }
+    } catch (error) {
+      console.error('Error initializing session:', error);
+      Alert.alert('Lỗi', 'Không thể khởi tạo phiên làm việc');
+    }
+  };
+
+  const loadOrders = (sessionId) => {
     try {
       const data = RoomModel.getOrdersBySession(sessionId);
       setOrders(data);
@@ -65,7 +100,11 @@ export default function RoomDetailScreen({ route, navigation }) {
   };
 
   const calculateDuration = () => {
-    const start = new Date(startTime);
+    if (!currentSession) {
+      return { hours: 0, minutes: 0, seconds: 0, totalHours: 0 };
+    }
+
+    const start = new Date(currentSession.startTime);
     const diff = currentTime - start;
     const hours = Math.floor(diff / (1000 * 60 * 60));
     const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
@@ -95,33 +134,52 @@ export default function RoomDetailScreen({ route, navigation }) {
     return seconds.toString().padStart(2, '0');
   };
 
-  const handleAddOrder = (menuItem) => {
-    Alert.alert(
-      'Xác nhận order',
-      `Thêm "${menuItem.name}" vào phòng ${room.name}?`,
-      [
-        { text: 'Hủy', style: 'cancel' },
-        {
-          text: 'Thêm',
-          onPress: () => {
-            try {
-              RoomModel.addOrder({
-                roomId: room.id,
-                sessionId,
-                menuItemId: menuItem.id,
-                menuItemName: menuItem.name,
-                quantity: 1,
-                price: menuItem.price
-              });
-              loadOrders();
-              Alert.alert('Thành công', `Đã thêm ${menuItem.name}`);
-            } catch (error) {
-              Alert.alert('Lỗi', 'Không thể thêm order');
-            }
-          }
-        }
-      ]
-    );
+  // Mở modal chọn số lượng
+  const handleSelectMenuItem = (menuItem) => {
+    setSelectedMenuItem(menuItem);
+    setSelectedQuantity(1);
+    setModalVisible(false);
+    setQuantityModalVisible(true);
+  };
+
+  // Xác nhận thêm order với số lượng
+  const handleConfirmAddOrder = () => {
+    if (!currentSession || !selectedMenuItem) return;
+
+    try {
+      RoomModel.addOrder({
+        roomId: room.id,
+        sessionId: currentSession.sessionId,
+        menuItemId: selectedMenuItem.id,
+        menuItemName: selectedMenuItem.name,
+        quantity: selectedQuantity,
+        price: selectedMenuItem.price
+      });
+      
+      loadOrders(currentSession.sessionId);
+      setQuantityModalVisible(false);
+      Alert.alert('Thành công', `Đã thêm ${selectedQuantity} ${selectedMenuItem.name}`);
+    } catch (error) {
+      console.error('Add order error:', error);
+      Alert.alert('Lỗi', 'Không thể thêm order');
+    }
+  };
+
+  // Tăng/giảm số lượng trong order
+  const handleUpdateOrderQuantity = (order, change) => {
+    const newQuantity = order.quantity + change;
+    
+    if (newQuantity <= 0) {
+      handleDeleteOrder(order);
+      return;
+    }
+
+    try {
+      RoomModel.updateOrderQuantity(order.id, newQuantity);
+      loadOrders(currentSession.sessionId);
+    } catch (error) {
+      Alert.alert('Lỗi', 'Không thể cập nhật số lượng');
+    }
   };
 
   const handleDeleteOrder = (order) => {
@@ -136,7 +194,7 @@ export default function RoomDetailScreen({ route, navigation }) {
           onPress: () => {
             try {
               RoomModel.deleteOrder(order.id);
-              loadOrders();
+              loadOrders(currentSession.sessionId);
               Alert.alert('Thành công', 'Đã xóa order');
             } catch (error) {
               Alert.alert('Lỗi', 'Không thể xóa order');
@@ -148,6 +206,11 @@ export default function RoomDetailScreen({ route, navigation }) {
   };
 
   const handleCheckout = () => {
+    if (!currentSession) {
+      Alert.alert('Lỗi', 'Không có phiên làm việc');
+      return;
+    }
+
     Alert.alert(
       'Kết thúc và thanh toán',
       'Bạn có chắc muốn kết thúc phiên và tạo hóa đơn?',
@@ -161,14 +224,16 @@ export default function RoomDetailScreen({ route, navigation }) {
             
             navigation.navigate('Invoice', {
               room,
-              sessionId,
-              startTime,
+              sessionId: currentSession.sessionId,
+              startTime: currentSession.startTime,
               endTime: new Date().toISOString(),
               duration: duration.totalHours,
               orders,
               roomCharge: totals.roomCharge,
               foodCharge: totals.foodCharge,
-              totalAmount: totals.total
+              totalAmount: totals.total,
+              customerName: currentSession.customerName,
+              customerPhone: currentSession.customerPhone
             });
           }
         }
@@ -184,6 +249,14 @@ export default function RoomDetailScreen({ route, navigation }) {
   const duration = calculateDuration();
   const totals = calculateTotal();
 
+  if (!currentSession) {
+    return (
+      <View style={styles.loadingContainer}>
+        <Text style={styles.loadingText}>Đang tải phiên làm việc...</Text>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       {/* Header */}
@@ -196,7 +269,7 @@ export default function RoomDetailScreen({ route, navigation }) {
         </TouchableOpacity>
         <View style={styles.headerContent}>
           <Text style={styles.headerTitle}>{room.name}</Text>
-          <Text style={styles.headerSubtitle}>{room.customer_name}</Text>
+          <Text style={styles.headerSubtitle}>{currentSession.customerName}</Text>
         </View>
         <TouchableOpacity style={styles.headerButton}>
           <Ionicons name="ellipsis-vertical" size={24} color="#fff" />
@@ -229,80 +302,99 @@ export default function RoomDetailScreen({ route, navigation }) {
         </View>
       </View>
 
-      {/* Content */}
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Orders Section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Đơn hàng ({orders.length})</Text>
-            <TouchableOpacity
-              style={styles.addOrderButton}
-              onPress={() => setModalVisible(true)}
-            >
-              <Ionicons name="add-circle" size={20} color="#0A1E42" />
-              <Text style={styles.addOrderText}>Thêm món</Text>
-            </TouchableOpacity>
-          </View>
-
-          {orders.length === 0 ? (
-            <View style={styles.emptyOrders}>
-              <Ionicons name="fast-food-outline" size={48} color="#CBD5E1" />
-              <Text style={styles.emptyText}>Chưa có order nào</Text>
+      {/* Content - Replace ScrollView with FlatList */}
+      <FlatList
+        data={orders}
+        keyExtractor={(item) => item.id.toString()}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        ListHeaderComponent={() => (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Đơn hàng ({orders.length})</Text>
               <TouchableOpacity
-                style={styles.emptyButton}
+                style={styles.addOrderButton}
                 onPress={() => setModalVisible(true)}
               >
-                <Text style={styles.emptyButtonText}>Thêm món đầu tiên</Text>
+                <Ionicons name="add-circle" size={20} color="#0A1E42" />
+                <Text style={styles.addOrderText}>Thêm món</Text>
               </TouchableOpacity>
             </View>
-          ) : (
-            <View style={styles.ordersList}>
-              {orders.map((order) => (
-                <View key={order.id} style={styles.orderItem}>
-                  <View style={styles.orderIcon}>
-                    <Ionicons name="restaurant" size={20} color="#10B981" />
-                  </View>
-                  <View style={styles.orderInfo}>
-                    <Text style={styles.orderName}>{order.menu_item_name}</Text>
-                    <Text style={styles.orderPrice}>
-                      {order.quantity} x {formatPrice(order.price)}
-                    </Text>
-                  </View>
-                  <Text style={styles.orderTotal}>{formatPrice(order.total)}</Text>
-                  <TouchableOpacity
-                    style={styles.deleteButton}
-                    onPress={() => handleDeleteOrder(order)}
-                  >
-                    <Ionicons name="trash-outline" size={18} color="#EF4444" />
-                  </TouchableOpacity>
-                </View>
-              ))}
+          </View>
+        )}
+        ListEmptyComponent={() => (
+          <View style={styles.emptyOrders}>
+            <Ionicons name="fast-food-outline" size={48} color="#CBD5E1" />
+            <Text style={styles.emptyText}>Chưa có order nào</Text>
+            <TouchableOpacity
+              style={styles.emptyButton}
+              onPress={() => setModalVisible(true)}
+            >
+              <Text style={styles.emptyButtonText}>Thêm món đầu tiên</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+        renderItem={({ item: order }) => (
+          <View style={styles.orderItem}>
+            <View style={styles.orderIcon}>
+              <Ionicons name="restaurant" size={20} color="#10B981" />
             </View>
-          )}
-        </View>
-
-        {/* Summary */}
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryTitle}>Tổng cộng</Text>
-          
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Tiền phòng ({Math.ceil(duration.totalHours)} giờ)</Text>
-            <Text style={styles.summaryValue}>{formatPrice(totals.roomCharge)}</Text>
+            <View style={styles.orderInfo}>
+              <Text style={styles.orderName}>{order.menu_item_name}</Text>
+              <Text style={styles.orderPrice}>
+                {formatPrice(order.price)} x {order.quantity}
+              </Text>
+            </View>
+            
+            {/* Quantity Controls */}
+            <View style={styles.quantityControls}>
+              <TouchableOpacity
+                style={styles.quantityButton}
+                onPress={() => handleUpdateOrderQuantity(order, -1)}
+              >
+                <Ionicons name="remove" size={16} color="#64748B" />
+              </TouchableOpacity>
+              <Text style={styles.quantityText}>{order.quantity}</Text>
+              <TouchableOpacity
+                style={styles.quantityButton}
+                onPress={() => handleUpdateOrderQuantity(order, 1)}
+              >
+                <Ionicons name="add" size={16} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+            
+            <Text style={styles.orderTotal}>{formatPrice(order.total)}</Text>
+            <TouchableOpacity
+              style={styles.deleteButton}
+              onPress={() => handleDeleteOrder(order)}
+            >
+              <Ionicons name="trash-outline" size={18} color="#EF4444" />
+            </TouchableOpacity>
           </View>
-          
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Đồ ăn & nước ({orders.length} món)</Text>
-            <Text style={styles.summaryValue}>{formatPrice(totals.foodCharge)}</Text>
+        )}
+        ListFooterComponent={() => (
+          <View style={styles.summaryCard}>
+            <Text style={styles.summaryTitle}>Tổng cộng</Text>
+            
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Tiền phòng ({Math.ceil(duration.totalHours)} giờ)</Text>
+              <Text style={styles.summaryValue}>{formatPrice(totals.roomCharge)}</Text>
+            </View>
+            
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Đồ ăn & nước ({orders.length} món)</Text>
+              <Text style={styles.summaryValue}>{formatPrice(totals.foodCharge)}</Text>
+            </View>
+            
+            <View style={styles.divider} />
+            
+            <View style={styles.summaryRow}>
+              <Text style={styles.totalLabel}>Tổng thanh toán</Text>
+              <Text style={styles.totalValue}>{formatPrice(totals.total)}</Text>
+            </View>
           </View>
-          
-          <View style={styles.divider} />
-          
-          <View style={styles.summaryRow}>
-            <Text style={styles.totalLabel}>Tổng thanh toán</Text>
-            <Text style={styles.totalValue}>{formatPrice(totals.total)}</Text>
-          </View>
-        </View>
-      </ScrollView>
+        )}
+      />
 
       {/* Bottom Actions */}
       <View style={styles.bottomActions}>
@@ -377,10 +469,7 @@ export default function RoomDetailScreen({ route, navigation }) {
               renderItem={({ item }) => (
                 <TouchableOpacity
                   style={styles.menuItem}
-                  onPress={() => {
-                    handleAddOrder(item);
-                    setModalVisible(false);
-                  }}
+                  onPress={() => handleSelectMenuItem(item)}
                 >
                   {item.image_url ? (
                     <Image source={{ uri: item.image_url }} style={styles.menuImage} />
@@ -405,6 +494,75 @@ export default function RoomDetailScreen({ route, navigation }) {
           </View>
         </View>
       </Modal>
+
+      {/* Quantity Modal */}
+      <Modal
+        visible={quantityModalVisible}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setQuantityModalVisible(false)}
+      >
+        <View style={styles.quantityModalOverlay}>
+          <View style={styles.quantityModalContent}>
+            <Text style={styles.quantityModalTitle}>Chọn số lượng</Text>
+            
+            {selectedMenuItem && (
+              <>
+                <View style={styles.selectedItemInfo}>
+                  <Text style={styles.selectedItemName}>{selectedMenuItem.name}</Text>
+                  <Text style={styles.selectedItemPrice}>
+                    {formatPrice(selectedMenuItem.price)}
+                  </Text>
+                </View>
+
+                <View style={styles.quantitySelector}>
+                  <TouchableOpacity
+                    style={styles.quantitySelectorButton}
+                    onPress={() => setSelectedQuantity(Math.max(1, selectedQuantity - 1))}
+                  >
+                    <Ionicons name="remove" size={24} color="#0A1E42" />
+                  </TouchableOpacity>
+                  
+                  <View style={styles.quantityDisplay}>
+                    <Text style={styles.quantityNumber}>{selectedQuantity}</Text>
+                  </View>
+                  
+                  <TouchableOpacity
+                    style={styles.quantitySelectorButton}
+                    onPress={() => setSelectedQuantity(selectedQuantity + 1)}
+                  >
+                    <Ionicons name="add" size={24} color="#0A1E42" />
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.totalPreview}>
+                  <Text style={styles.totalPreviewLabel}>Tổng cộng:</Text>
+                  <Text style={styles.totalPreviewValue}>
+                    {formatPrice(selectedMenuItem.price * selectedQuantity)}
+                  </Text>
+                </View>
+
+                <View style={styles.quantityModalActions}>
+                  <TouchableOpacity
+                    style={[styles.quantityModalButton, styles.cancelModalButton]}
+                    onPress={() => setQuantityModalVisible(false)}
+                  >
+                    <Text style={styles.cancelModalButtonText}>Hủy</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    style={[styles.quantityModalButton, styles.confirmModalButton]}
+                    onPress={handleConfirmAddOrder}
+                  >
+                    <Ionicons name="checkmark-circle" size={20} color="#fff" />
+                    <Text style={styles.confirmModalButtonText}>Thêm vào đơn</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -413,6 +571,16 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F8FAFC',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#64748B',
   },
   header: {
     flexDirection: 'row',
@@ -505,11 +673,11 @@ const styles = StyleSheet.create({
     marginHorizontal: 8,
   },
   content: {
-    flex: 1,
     paddingHorizontal: 20,
+    paddingBottom: 100,
   },
   section: {
-    marginBottom: 24,
+    marginBottom: 16,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -558,16 +726,13 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   ordersList: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    overflow: 'hidden',
+    marginTop: 8,
   },
   orderItem: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 16,
+    backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#F1F5F9',
   },
@@ -593,11 +758,39 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#64748B',
   },
+  quantityControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 8,
+    padding: 4,
+    marginRight: 12,
+  },
+  quantityButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  quantityText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#0F172A',
+    marginHorizontal: 12,
+    minWidth: 24,
+    textAlign: 'center',
+  },
   orderTotal: {
     fontSize: 16,
     fontWeight: '700',
     color: '#10B981',
     marginRight: 12,
+    minWidth: 80,
+    textAlign: 'right',
   },
   deleteButton: {
     padding: 8,
@@ -668,11 +861,6 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderRadius: 12,
     gap: 10,
-    shadowColor: '#EF4444',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
   },
   checkoutButtonText: {
     fontSize: 16,
@@ -775,5 +963,119 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#10B981',
+  },
+  // Quantity Modal Styles
+  quantityModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  quantityModalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+  },
+  quantityModalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#0A1E42',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  selectedItemInfo: {
+    alignItems: 'center',
+    marginBottom: 24,
+    paddingBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+  },
+  selectedItemName: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#0F172A',
+    marginBottom: 8,
+  },
+  selectedItemPrice: {
+    fontSize: 16,
+    color: '#10B981',
+    fontWeight: '600',
+  },
+  quantitySelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
+  },
+  quantitySelectorButton: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#EFF6FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#0A1E42',
+  },
+  quantityDisplay: {
+    marginHorizontal: 32,
+    minWidth: 60,
+    alignItems: 'center',
+  },
+  quantityNumber: {
+    fontSize: 36,
+    fontWeight: '700',
+    color: '#0A1E42',
+  },
+  totalPreview: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#FEF2F2',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 24,
+  },
+  totalPreviewLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  totalPreviewValue: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#EF4444',
+  },
+  quantityModalActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  quantityModalButton: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 14,
+    borderRadius: 12,
+    gap: 8,
+  },
+  cancelModalButton: {
+    backgroundColor: '#F1F5F9',
+  },
+  cancelModalButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  confirmModalButton: {
+    backgroundColor: '#10B981',
+  },
+  confirmModalButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#fff',
   },
 });

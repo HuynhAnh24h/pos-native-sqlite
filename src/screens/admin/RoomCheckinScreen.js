@@ -213,19 +213,33 @@ export default function RoomCheckInScreen({ route, navigation }) {
             
             <View style={styles.divider} />
             
+            <View style={styles.pricingNote}>
+              <Ionicons name="information-circle" size={18} color="#3B82F6" />
+              <Text style={styles.pricingNoteText}>
+                • Tính tối thiểu 30 phút{'\n'}
+                • Từ 30 phút trở lên: Làm tròn lên giờ
+              </Text>
+            </View>
+            
+            <View style={styles.divider} />
+            
             <View style={styles.pricingExamples}>
               <Text style={styles.examplesTitle}>Ví dụ:</Text>
               <View style={styles.exampleRow}>
-                <Text style={styles.exampleLabel}>• 1 giờ:</Text>
-                <Text style={styles.exampleValue}>{formatPrice(room.price_per_hour)}</Text>
+                <Text style={styles.exampleLabel}>• 15 phút:</Text>
+                <Text style={styles.exampleValue}>{formatPrice(room.price_per_hour * 0.5)} (tính 30p)</Text>
               </View>
               <View style={styles.exampleRow}>
-                <Text style={styles.exampleLabel}>• 2 giờ:</Text>
-                <Text style={styles.exampleValue}>{formatPrice(room.price_per_hour * 2)}</Text>
+                <Text style={styles.exampleLabel}>• 45 phút:</Text>
+                <Text style={styles.exampleValue}>{formatPrice(room.price_per_hour)} (tính 1h)</Text>
               </View>
               <View style={styles.exampleRow}>
-                <Text style={styles.exampleLabel}>• 3 giờ:</Text>
-                <Text style={styles.exampleValue}>{formatPrice(room.price_per_hour * 3)}</Text>
+                <Text style={styles.exampleLabel}>• 1h 30p:</Text>
+                <Text style={styles.exampleValue}>{formatPrice(room.price_per_hour * 2)} (tính 2h)</Text>
+              </View>
+              <View style={styles.exampleRow}>
+                <Text style={styles.exampleLabel}>• 2h 10p:</Text>
+                <Text style={styles.exampleValue}>{formatPrice(room.price_per_hour * 3)} (tính 3h)</Text>
               </View>
             </View>
             
@@ -446,6 +460,20 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
     color: '#0A1E42',
+  },
+  pricingNote: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    backgroundColor: '#EFF6FF',
+    padding: 12,
+    borderRadius: 8,
+  },
+  pricingNoteText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#3B82F6',
+    lineHeight: 20,
   },
   divider: {
     height: 1,

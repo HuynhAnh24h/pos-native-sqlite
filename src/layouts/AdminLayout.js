@@ -33,6 +33,7 @@ export default function AdminLayout({ children, navigation, activeRoute: initial
     { id: 'Menu', icon: 'restaurant-outline', label: 'Quản lý Menu', route: 'Menu' },
     { id: 'Rooms', icon: 'musical-notes-outline', label: 'Phòng hát', route: 'Rooms' },
     { id: 'History', icon: 'cart-outline', label: 'Lịch sử giao dịch', route: 'History' },
+    { id: 'Setting', icon: 'cart-outline', label: 'Cài đặt', route: 'Setting' },
   ];
 
   const handleNavigation = (route, id) => {
